@@ -1,4 +1,4 @@
 .vscode
 dataset
 __pycache__/
-
+local_model/

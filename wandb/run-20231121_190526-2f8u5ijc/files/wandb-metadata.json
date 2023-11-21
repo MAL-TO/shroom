@@ -1,0 +1,23 @@
+{
+    "os": "Linux-5.15.0-88-generic-x86_64-with-glibc2.31",
+    "python": "3.9.7",
+    "heartbeatAt": "2023-11-21T19:05:28.062303",
+    "startedAt": "2023-11-21T19:05:26.941465",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 1,
+    "cpu_count": 16,
+    "cuda": null,
+    "args": null,
+    "state": "running",
+    "program": "<python with no main file>",
+    "git": {
+        "remote": "git@github.com:MAL-TO/shroom.git",
+        "commit": "66ef9844884a26139f930bd64628fa1f785d2eed"
+    },
+    "email": "rico.borra@gmail.com",
+    "root": "/home/fborra/shroom",
+    "host": "heron",
+    "username": "fborra",
+    "executable": "/data1/malto/fborra/venv/bin/python3.9"
+}

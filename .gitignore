@@ -3,3 +3,8 @@ dataset
 __pycache__/
 local_model/
 Jack_Data/*
+paper_results
+paper_results_mnli
+paper_results_old
+test.*
+val.*

@@ -46,7 +46,7 @@ def set_seed(random_seed):
 
     return torch.Generator().manual_seed(random_seed)
 
-def run_baseline(n):
+def run_baseline(n, use_mnli):
     BASE_DIR = Path("/data1/malto/shroom/")
     BATCH_SIZE = 4
     NUM_EPOCHS = 10
@@ -55,8 +55,7 @@ def run_baseline(n):
 
     set_seed(n)
     
-    checkpoint = "microsoft/deberta-v2-xlarge"
-    #checkpoint = "microsoft/deberta-xlarge-mnli"
+    checkpoint = "microsoft/deberta-xlarge-mnli" if use_mnli else "microsoft/deberta-v2-xlarge"
     #checkpoint = "microsoft/deberta-v2-xxlarge-mnli"
 
     tokenizer = AutoTokenizer.from_pretrained(checkpoint)
@@ -93,6 +92,7 @@ def run_baseline(n):
         report_to="none",
         save_strategy="no",
         logging_steps=1,
+        lr_scheduler_type="constant"
     )
 
     trainer = Trainer(
@@ -107,11 +107,13 @@ def run_baseline(n):
 
     trainer.train()
 
+    path = "paper_results_mnli/" if use_mnli else "paper_results/"
+
     predictions, _, _ = trainer.predict(ds_val_aware['train'])
     predictions = scipy.special.expit(predictions)
     predictions = predictions[:, 1] / predictions.sum(axis=1)
     df = pd.DataFrame(predictions, columns=["baseline"])
-    df.to_csv(f"paper_results/baseline_val{n}.csv", index=False)
+    df.to_csv(path+f"baseline_val{n}.csv", index=False)
 
     ds_test = load_dataset("json", data_files=[str(BASE_DIR / f"test.model-agnostic.json")])
 
@@ -121,13 +123,14 @@ def run_baseline(n):
     preds = preds[:, 1] / preds.sum(axis=1)
 
     df = pd.DataFrame(preds, columns=["baseline"])
-    df.to_csv(f"paper_results/baseline_test_x_large{n}.csv", index=False)
+    df.to_csv(path+f"baseline_test{n}.csv", index=False)
 
 
 if __name__ == "__main__":
     tests_to_run = 5
+    use_mnli = True
     for i in range(tests_to_run):
         print(f"Running test {i}")
-        run_baseline(i)
+        run_baseline(i, use_mnli)
 
     

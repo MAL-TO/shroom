@@ -61,11 +61,11 @@ class CustomTrainer(Trainer):
         loss = loss.mean()
         return (loss, outputs) if return_outputs else loss
 
-def run_crlft(n):
+def run_crlft(n, use_mnli):
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
     os.environ["WANDB_DISABLED"] = "true"
 
-    BATCH_SIZE = 4
+    BATCH_SIZE = 6
     NUM_EPOCHS = 1
     BASE_DIR = Path("/data1/malto/shroom/")
 
@@ -73,8 +73,7 @@ def run_crlft(n):
     FROZEN_LAYERS = 16
     USE_SEQUENTIAL = True
 
-    checkpoint = "microsoft/deberta-v2-xlarge"
-    #checkpoint = "microsoft/deberta-xlarge-mnli"
+    checkpoint = "microsoft/deberta-xlarge-mnli" if use_mnli else "microsoft/deberta-v2-xlarge"
     #checkpoint = "microsoft/deberta-large-mnli"
     #checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
     #checkpoint = "microsoft/deberta-v3-base"
@@ -93,7 +92,7 @@ def run_crlft(n):
 
     if USE_SEQUENTIAL:
         model.classifier = nn.Sequential(
-            nn.Linear(in_features=model.deberta.encoder.conv.conv.weight.shape[1], out_features=2048, bias=True),
+            nn.Linear(in_features=1024 if use_mnli else model.deberta.encoder.conv.conv.weight.shape[1], out_features=2048, bias=True),
             nn.Sigmoid(),
             nn.Linear(in_features=2048, out_features=2, bias=True)
         )
@@ -143,6 +142,7 @@ def run_crlft(n):
         logging_steps=1,
         report_to="none",
         remove_unused_columns=False,
+        lr_scheduler_type="constant"
     )
 
     trainer = CustomTrainer(
@@ -160,11 +160,13 @@ def run_crlft(n):
 
     trainer.train()
 
+    path = "paper_results_mnli/" if use_mnli else "paper_results/"
+
     predictions, _, _ = trainer.predict(ds["test"])
     predictions = scipy.special.expit(predictions)
     predictions = predictions[:, 1] / predictions.sum(axis=1)
     df = pd.DataFrame(predictions, columns=["crlft"])
-    df.to_csv(f"paper_results/crlft_val{n}.csv", index=False)
+    df.to_csv(path+f"crlft_val{n}.csv", index=False)
 
     ds_test = load_dataset("json", data_files=["test.model-agnostic-cla.json"])
     obj = ds_test['train'].map(partial(preprocess_function_test, tokenizer = tokenizer)).remove_columns(["id", 'tgt', 'task', 'hyp', 'src'])
@@ -175,13 +177,14 @@ def run_crlft(n):
     preds = preds[:, 1] / preds.sum(axis=1)
 
     df = pd.DataFrame(preds, columns=["crlft"])
-    df.to_csv(f"paper_results/crlft_test{n}.csv", index=False)
+    df.to_csv(path+f"crlft_test{n}.csv", index=False)
 
 
 if __name__ == "__main__":
     tests_to_run = 5
+    use_mnli = True
     for i in range(tests_to_run):
         print(f"Running test {i}")
-        run_crlft(i)
+        run_crlft(i, use_mnli)
 
     

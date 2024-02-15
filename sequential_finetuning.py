@@ -34,8 +34,9 @@ def preprocess_function_test(examples, tokenizer): # not batched
     model_inputs = tokenizer(examples['hyp'], examples['tgt'], truncation=True, max_length=80)
     return model_inputs
 
-def train_with_dataset(ds, num_epochs, model, ds_val_aware, tokenizer, data_collator, BATCH_SIZE, BASE_DIR):
+def train_with_dataset(ds, num_epochs, model, ds_val_aware, tokenizer, data_collator, BATCH_SIZE, BASE_DIR, reduce_dataset = False):
     ds = ds.map(get_label).map(partial(preprocess_function, tokenizer = tokenizer)).remove_columns(['hyp', 'src', 'task', 'ref', 'tgt', 'model', 'labels', 'C-W', 'p(Hallucination)']).shuffle()
+    #ds = ds.shard(num_shards=5, index=0) if reduce_dataset else ds
     training_args = TrainingArguments(
         output_dir=BASE_DIR / "checkpoint" / "sequential",
         learning_rate=1e-6,
@@ -76,19 +77,18 @@ def set_seed(random_seed):
 
     return torch.Generator().manual_seed(random_seed)
 
-def run_sequential_finetuning(n):
+def run_sequential_finetuning(n, use_mnli):
     BASE_DIR = Path("/data1/malto/shroom/")
-    BATCH_SIZE = 4
-    NUM_EPOCHS_SYN = 2
+    BATCH_SIZE = 6
+    NUM_EPOCHS_SYN = 1
     NUM_EPOCHS_GPT = 2
-    NUM_EPOCHS_TRUE = 2
+    NUM_EPOCHS_TRUE = 3
 
     set_seed(n)
 
     BASE_DIR = Path("/data1/malto/shroom/")
 
-    checkpoint = "microsoft/deberta-v2-xlarge"
-    #checkpoint = "microsoft/deberta-xlarge-mnli"
+    checkpoint = "microsoft/deberta-xlarge-mnli" if use_mnli else "microsoft/deberta-v2-xlarge"
 
     tokenizer = AutoTokenizer.from_pretrained(checkpoint)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -120,24 +120,27 @@ def run_sequential_finetuning(n):
     train_with_dataset(ds_gpt['train'], NUM_EPOCHS_GPT, model, ds_val_aware, tokenizer, data_collator, BATCH_SIZE, BASE_DIR)
     trainer = train_with_dataset(ds_val['train'], NUM_EPOCHS_TRUE, model, ds_val_aware, tokenizer, data_collator, BATCH_SIZE, BASE_DIR)
 
+    path = "paper_results_mnli/" if use_mnli else "paper_results/"
+
+
     ds_val_aware = load_dataset("json", data_files=["val.model-aware-cla.json"])
     predictions, _, _ = trainer.predict(ds_val_aware['train'].map(partial(preprocess_function_test, tokenizer = tokenizer)))
     predictions = scipy.special.expit(predictions)
     predictions = predictions[:, 1] / predictions.sum(axis=1)
     df = pd.DataFrame(predictions, columns=["sequential"])
-    df.to_csv(f"sequential_val{n}.csv", index=False)
+    df.to_csv(path + f"sequential_val{n}.csv", index=False)
 
     ds_test = load_dataset("json", data_files=[str(BASE_DIR / f"test.model-agnostic.json")])
     predictions, _, _ = trainer.predict(ds_test['train'].map(partial(preprocess_function_test, tokenizer = tokenizer)))
     preds = scipy.special.expit(predictions)
     preds = preds[:, 1] / preds.sum(axis=1)
 
-    path = "paper_results/"
     df = pd.DataFrame(preds, columns=["sequential"])
-    df.to_csv(path + f"sequential_test_no_sch{n}.csv", index=False)
+    df.to_csv(path + f"sequential_test{n}.csv", index=False)
 
 if __name__ == "__main__":
     tests_to_run = 5
+    use_mnli = True
     for i in range(tests_to_run):
         print(f"Running test {i}")
-        run_sequential_finetuning(i)
+        run_sequential_finetuning(i, use_mnli)
